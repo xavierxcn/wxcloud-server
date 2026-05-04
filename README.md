@@ -39,6 +39,8 @@ PORT=8080 go run .
 
 本服务只使用微信云托管访问微信开放接口，不依赖本地公网 IP 白名单。
 
+当前验证结论：`/cgi-bin/freepublish/batchget` 官方接口存在，但该接口文档标注“不支持云调用”。本服务的 `GET /wechat/freepublish/batchget` 可用于确认 CloudRun 开放接口链路是否生效；若返回 `x-openapi-seqid` 且微信响应 `48001 api unauthorized`，说明云调用链路已通，但该公众号接口不能通过开放接口服务完成。
+
 云托管控制台需要：
 
 - 开启「服务管理 / 云调用 / 开放接口服务」。
@@ -48,7 +50,7 @@ PORT=8080 go run .
 
 服务调用方式：
 
-- `GET /wechat/freepublish/batchget`：通过云托管开放接口服务免鉴权调用 `/cgi-bin/freepublish/batchget`，不手动换取或拼接 `access_token`。
+- `GET /wechat/freepublish/batchget`：通过云托管开放接口服务免鉴权调用 `/cgi-bin/freepublish/batchget`，不手动换取或拼接 `access_token`。当前主要用于验证云调用链路和接口权限。
 - `GET /wechat/token/check`：保留用于排查传统 AppSecret 换 token 路径；云托管开放接口服务的主流程不依赖它。
 
 服务代码必须使用 `http://api.weixin.qq.com`，并且不要在请求中携带 `access_token` 或 `cloudbase_access_token`。返回头中出现 `x-openapi-seqid` 时，说明请求经过了微信云托管开放接口服务。
@@ -141,7 +143,7 @@ curl -X POST -H 'content-type: application/json' -d '{"action": "inc"}' https://
 
 ### `GET /wechat/freepublish/batchget`
 
-通过微信云托管开放接口服务调用微信公众号已发布内容列表接口。
+通过微信云托管开放接口服务尝试调用微信公众号已发布内容列表接口。该接口当前主要用于链路诊断，因为官方文档标注它不支持云调用。
 
 #### 前置条件
 
@@ -151,7 +153,9 @@ curl -X POST -H 'content-type: application/json' -d '{"action": "inc"}' https://
 
 #### 响应结果
 
-直接透传微信接口响应。
+直接透传微信接口响应，并在上游返回 `x-openapi-seqid` 时透传该响应头。
+
+若响应为 `48001 api unauthorized` 且响应头包含 `x-openapi-seqid`，说明 CloudRun 开放接口服务已经生效，但该接口不能通过云调用授权访问。后续正式公众号草稿、发布、数据同步需要走标准公众号 API 固定出口 IP、第三方平台授权，或其他官方支持的认证路径。
 
 #### 调用示例
 
