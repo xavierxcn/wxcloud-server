@@ -9,13 +9,19 @@ const tableName = "Counters"
 
 // ClearCounter 清除Counter
 func (imp *CounterInterfaceImp) ClearCounter(id int32) error {
-	cli := db.Get()
+	cli, err := db.Ensure()
+	if err != nil {
+		return err
+	}
 	return cli.Table(tableName).Delete(&model.CounterModel{Id: id}).Error
 }
 
 // UpsertCounter 更新/写入counter
 func (imp *CounterInterfaceImp) UpsertCounter(counter *model.CounterModel) error {
-	cli := db.Get()
+	cli, err := db.Ensure()
+	if err != nil {
+		return err
+	}
 	return cli.Table(tableName).Save(counter).Error
 }
 
@@ -24,7 +30,10 @@ func (imp *CounterInterfaceImp) GetCounter(id int32) (*model.CounterModel, error
 	var err error
 	var counter = new(model.CounterModel)
 
-	cli := db.Get()
+	cli, err := db.Ensure()
+	if err != nil {
+		return nil, err
+	}
 	err = cli.Table(tableName).Where("id = ?", id).First(counter).Error
 
 	return counter, err

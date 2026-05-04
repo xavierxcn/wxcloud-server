@@ -1,21 +1,34 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"wxcloudrun-golang/db"
+	"os"
+	"strings"
+
 	"wxcloudrun-golang/service"
 )
 
 func main() {
-	if err := db.Init(); err != nil {
-		panic(fmt.Sprintf("mysql init failed with %+v", err))
+	log.Fatal(http.ListenAndServe(listenAddr(), newServer()))
+}
+
+func newServer() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", service.IndexHandler)
+	mux.HandleFunc("/api/count", service.CounterHandler)
+	mux.HandleFunc("/wechat/freepublish/batchget", service.WeChatFreePublishBatchGetHandler)
+
+	return mux
+}
+
+func listenAddr() string {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
 	}
-
-	http.HandleFunc("/", service.IndexHandler)
-	http.HandleFunc("/api/count", service.CounterHandler)
-	http.HandleFunc("/wechat/freepublish/batchget", service.WeChatFreePublishBatchGetHandler)
-
-	log.Fatal(http.ListenAndServe(":80", nil))
+	if strings.HasPrefix(port, ":") {
+		return port
+	}
+	return ":" + port
 }

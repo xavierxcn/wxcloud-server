@@ -1,8 +1,11 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -11,11 +14,23 @@ import (
 )
 
 var dbInstance *gorm.DB
+var dbMu sync.Mutex
 
 // Init 初始化数据库
 func Init() error {
+	_, err := Ensure()
+	return err
+}
 
-	source := "%s:%s@tcp(%s)/%s?readTimeout=1500ms&writeTimeout=1500ms&charset=utf8&loc=Local&&parseTime=true"
+// Ensure returns a database connection, initializing it lazily on first use.
+func Ensure() (*gorm.DB, error) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+
+	if dbInstance != nil {
+		return dbInstance, nil
+	}
+
 	user := os.Getenv("MYSQL_USERNAME")
 	pwd := os.Getenv("MYSQL_PASSWORD")
 	addr := os.Getenv("MYSQL_ADDRESS")
@@ -23,8 +38,12 @@ func Init() error {
 	if dataBase == "" {
 		dataBase = "golang_demo"
 	}
-	source = fmt.Sprintf(source, user, pwd, addr, dataBase)
-	fmt.Println("start init mysql with ", source)
+	if err := validateConfig(user, pwd, addr); err != nil {
+		return nil, err
+	}
+
+	source := fmt.Sprintf("%s:%s@tcp(%s)/%s?readTimeout=1500ms&writeTimeout=1500ms&charset=utf8&loc=Local&parseTime=true", user, pwd, addr, dataBase)
+	fmt.Printf("start init mysql with %s@tcp(%s)/%s\n", user, addr, dataBase)
 
 	db, err := gorm.Open(mysql.Open(source), &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
@@ -32,13 +51,13 @@ func Init() error {
 		}})
 	if err != nil {
 		fmt.Println("DB Open error,err=", err.Error())
-		return err
+		return nil, err
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
 		fmt.Println("DB Init error,err=", err.Error())
-		return err
+		return nil, err
 	}
 
 	// 用于设置连接池中空闲连接的最大数量
@@ -50,11 +69,29 @@ func Init() error {
 
 	dbInstance = db
 
-	fmt.Println("finish init mysql with ", source)
-	return nil
+	fmt.Printf("finish init mysql with %s@tcp(%s)/%s\n", user, addr, dataBase)
+	return dbInstance, nil
 }
 
 // Get ...
 func Get() *gorm.DB {
 	return dbInstance
+}
+
+func validateConfig(user, pwd, addr string) error {
+	missing := make([]string, 0, 3)
+	if strings.TrimSpace(addr) == "" {
+		missing = append(missing, "MYSQL_ADDRESS")
+	}
+	if strings.TrimSpace(user) == "" {
+		missing = append(missing, "MYSQL_USERNAME")
+	}
+	if strings.TrimSpace(pwd) == "" {
+		missing = append(missing, "MYSQL_PASSWORD")
+	}
+	if len(missing) > 0 {
+		return errors.New("missing database environment variables: " + strings.Join(missing, ", "))
+	}
+
+	return nil
 }
