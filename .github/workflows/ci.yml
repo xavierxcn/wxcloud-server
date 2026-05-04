@@ -93,4 +93,10 @@ jobs:
 
       - name: Check HTTPS health endpoint
         run: |
+          for attempt in {1..12}; do
+            if curl -fsS "https://${{ secrets.LIGHTHOUSE_DOMAIN }}/healthz"; then
+              exit 0
+            fi
+            sleep 10
+          done
           curl -fsS "https://${{ secrets.LIGHTHOUSE_DOMAIN }}/healthz"
