@@ -105,6 +105,30 @@ curl https://<云托管服务域名>/api/count
 curl -X POST -H 'content-type: application/json' -d '{"action": "inc"}' https://<云托管服务域名>/api/count
 ```
 
+### `GET /wechat/freepublish/batchget`
+
+通过微信云托管开放接口服务调用微信公众号已发布内容列表接口。
+
+#### 前置条件
+
+- 已在「服务管理 / 云调用」开启开放接口服务。
+- 已在「微信令牌权限」配置 `/cgi-bin/freepublish/batchget`。
+- 服务已重新发布，使云调用配置对线上版本生效。
+
+#### 响应结果
+
+直接透传微信接口响应。
+
+#### 调用示例
+
+```
+curl https://<云托管服务域名>/wechat/freepublish/batchget
+```
+
+#### 注意
+
+服务内部请求 `http://api.weixin.qq.com/cgi-bin/freepublish/batchget`，不手动拼接 `access_token`。
+
 ## 使用注意
 如果不是通过微信云托管控制台部署模板代码，而是自行复制/下载模板代码后，手动新建一个服务并部署，需要在「服务设置」中补全以下环境变量，才可正常使用，否则会引发无法连接数据库，进而导致部署失败。
 - MYSQL_ADDRESS
