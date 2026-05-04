@@ -1,4 +1,5 @@
 # wxcloudrun-golang
+[![CI](https://github.com/xavierxcn/wxcloud-server/actions/workflows/ci.yml/badge.svg)](https://github.com/xavierxcn/wxcloud-server/actions/workflows/ci.yml)
 [![GitHub license](https://img.shields.io/github/license/WeixinCloud/wxcloudrun-express)](https://github.com/WeixinCloud/wxcloudrun-express)
 ![Go version](https://img.shields.io/badge/golang-1.26.2-green)
 
@@ -24,6 +25,15 @@ PORT=8080 go run .
 
 ## Dockerfile最佳实践
 请参考[如何提高项目构建效率](https://developers.weixin.qq.com/miniprogram/dev/wxcloudrun/src/scene/build/speed.html)
+
+## GitHub Actions
+
+`.github/workflows/ci.yml` 会在 `main` 分支 push、pull request 和手动触发时运行：
+
+- `go mod download`
+- `go test ./...`
+- `go build ./...`
+- `docker build -t wxcloud-server:<commit> .`
 
 ## 目录结构说明
 ~~~
