@@ -36,5 +36,59 @@ jobs:
       - name: Build Go packages
         run: go build ./...
 
+      - name: Validate Docker Compose config
+        run: docker compose config
+
       - name: Build container image
         run: docker build -t wxcloud-server:${{ github.sha }} .
+
+  deploy-lighthouse:
+    name: Deploy to Tencent Cloud Lighthouse
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.LIGHTHOUSE_SSH_KEY }}
+
+      - name: Trust server host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.LIGHTHOUSE_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync source to server
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            ./ "${{ secrets.LIGHTHOUSE_USER }}@${{ secrets.LIGHTHOUSE_HOST }}:${{ secrets.LIGHTHOUSE_DEPLOY_PATH }}/"
+
+      - name: Write server environment
+        run: |
+          ssh "${{ secrets.LIGHTHOUSE_USER }}@${{ secrets.LIGHTHOUSE_HOST }}" "cat > '${{ secrets.LIGHTHOUSE_DEPLOY_PATH }}/.env'" <<'EOF'
+          PORT=8080
+          DOMAIN=${{ secrets.LIGHTHOUSE_DOMAIN }}
+          WECHAT_API_MODE=standard
+          ADMIN_TOKEN=${{ secrets.ADMIN_TOKEN }}
+          WECHAT_APP_ID=${{ secrets.WECHAT_APP_ID }}
+          WECHAT_APP_SECRET=${{ secrets.WECHAT_APP_SECRET }}
+          MYSQL_ADDRESS=${{ secrets.MYSQL_ADDRESS }}
+          MYSQL_USERNAME=${{ secrets.MYSQL_USERNAME }}
+          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+          EOF
+
+      - name: Deploy Docker Compose
+        run: |
+          ssh "${{ secrets.LIGHTHOUSE_USER }}@${{ secrets.LIGHTHOUSE_HOST }}" "cd '${{ secrets.LIGHTHOUSE_DEPLOY_PATH }}' && ./scripts/deploy-lighthouse.sh"
+
+      - name: Check HTTPS health endpoint
+        run: |
+          curl -fsS "https://${{ secrets.LIGHTHOUSE_DOMAIN }}/healthz"

@@ -33,7 +33,54 @@ PORT=8080 go run .
 - `go mod download`
 - `go test ./...`
 - `go build ./...`
+- `docker compose config`
 - `docker build -t wxcloud-server:<commit> .`
+
+`main` 分支 push 和手动触发还会执行 `deploy-lighthouse`，通过 SSH 同步代码到腾讯云轻量服务器并运行 Docker Compose。部署依赖 GitHub Secrets：
+
+- `LIGHTHOUSE_HOST`
+- `LIGHTHOUSE_USER`
+- `LIGHTHOUSE_SSH_KEY`
+- `LIGHTHOUSE_DEPLOY_PATH`
+- `LIGHTHOUSE_DOMAIN`
+- `WECHAT_APP_ID`
+- `WECHAT_APP_SECRET`
+- `ADMIN_TOKEN`
+
+不要把上述值写入代码或文档。
+
+## 腾讯云轻量服务器部署
+
+轻量服务器部署用于标准公众号 API 模式。将 `wx.xavierx.cn` 解析到服务器公网 IP，并在公众号后台把该公网 IP 加入 IP 白名单。
+
+服务器初始化：
+
+```bash
+DEPLOY_PATH=/opt/wxcloud-server DEPLOY_USER=ubuntu bash scripts/bootstrap-lighthouse.sh
+```
+
+部署方式：
+
+```bash
+docker compose up -d --build --remove-orphans
+```
+
+`compose.yaml` 包含两个容器：
+
+- `wxcloud-server`：Go 服务，默认监听容器内 `8080`。
+- `caddy`：绑定 `80/443`，为 `LIGHTHOUSE_DOMAIN` 自动签发 HTTPS 证书并反向代理到 Go 服务。
+
+公网健康检查：
+
+```bash
+curl https://wx.xavierx.cn/healthz
+```
+
+受保护接口需要管理令牌：
+
+```bash
+curl -H "X-Admin-Token: <ADMIN_TOKEN>" https://wx.xavierx.cn/readyz
+```
 
 ## 微信云托管开放接口服务
 
@@ -72,6 +119,14 @@ PORT=8080 go run .
 
 
 ## 服务 API 文档
+
+### `GET /healthz`
+
+公开存活检查，不需要管理令牌。
+
+### `GET /readyz`
+
+就绪检查。配置 `ADMIN_TOKEN` 后需要请求头 `X-Admin-Token`。返回运行模式和必要配置是否存在，不返回密钥值。
 
 ### `GET /api/count`
 
@@ -143,7 +198,9 @@ curl -X POST -H 'content-type: application/json' -d '{"action": "inc"}' https://
 
 ### `GET /wechat/freepublish/batchget`
 
-通过微信云托管开放接口服务尝试调用微信公众号已发布内容列表接口。该接口当前主要用于链路诊断，因为官方文档标注它不支持云调用。
+在 `WECHAT_API_MODE=cloudrun` 时，通过微信云托管开放接口服务尝试调用微信公众号已发布内容列表接口。该接口当前主要用于链路诊断，因为官方文档标注它不支持云调用。
+
+在 `WECHAT_API_MODE=standard` 时，通过 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET` 获取并缓存标准公众号 `access_token`，再调用该接口。此模式需要服务器公网 IP 已加入公众号 IP 白名单。
 
 #### 前置条件
 
@@ -179,6 +236,14 @@ curl https://<云托管服务域名>/wechat/freepublish/batchget
 - MYSQL_DATABASE，默认 `golang_demo`
 
 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET` 可作为传统公众号接口排查变量保留；开放接口服务主流程不依赖它们。
+
+轻量服务器标准公众号 API 模式需要：
+
+- `DOMAIN`
+- `WECHAT_API_MODE=standard`
+- `ADMIN_TOKEN`
+- `WECHAT_APP_ID`
+- `WECHAT_APP_SECRET`
 
 不要把数据库密码写入代码、README 或 `container.config.json`。
 不要把 `WECHAT_APP_SECRET` 写入代码、README 或 `container.config.json`。

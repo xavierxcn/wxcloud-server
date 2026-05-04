@@ -92,6 +92,59 @@ func TestFreePublishBatchGetHandlerDoesNotFetchTokenWhenCredentialsAreConfigured
 	}
 }
 
+func TestStandardFreePublishBatchGetHandlerFetchesAndCachesAccessToken(t *testing.T) {
+	tokenCalls := 0
+	batchCalls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/cgi-bin/token":
+			tokenCalls++
+			if got := r.URL.Query().Get("grant_type"); got != "client_credential" {
+				t.Fatalf("grant_type = %s, want client_credential", got)
+			}
+			if got := r.URL.Query().Get("appid"); got != "app-id" {
+				t.Fatalf("appid = %s, want app-id", got)
+			}
+			if got := r.URL.Query().Get("secret"); got != "app-secret" {
+				t.Fatalf("secret = %s, want app-secret", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"access_token":"token-123","expires_in":7200}`))
+		case "/cgi-bin/freepublish/batchget":
+			batchCalls++
+			if got := r.URL.Query().Get("access_token"); got != "token-123" {
+				t.Fatalf("access_token = %s, want token-123", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"total_count":0,"item_count":0,"item":[]}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	handler := NewWeChatStandardFreePublishBatchGetHandler(upstream.Client(), upstream.URL, WeChatCredentials{
+		AppID:     "app-id",
+		AppSecret: "app-secret",
+	})
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/wechat/freepublish/batchget", nil)
+		rec := httptest.NewRecorder()
+
+		handler(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d status = %d, want %d; body = %s", i+1, rec.Code, http.StatusOK, rec.Body.String())
+		}
+	}
+	if tokenCalls != 1 {
+		t.Fatalf("tokenCalls = %d, want 1", tokenCalls)
+	}
+	if batchCalls != 2 {
+		t.Fatalf("batchCalls = %d, want 2", batchCalls)
+	}
+}
+
 func TestWeChatTokenCheckHandlerDoesNotExposeToken(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/cgi-bin/token" {
