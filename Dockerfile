@@ -5,6 +5,12 @@ FROM golang:1.26.2-alpine AS builder
 # 指定构建过程中的工作目录
 WORKDIR /app
 
+ENV GOPROXY=https://goproxy.cn,direct
+
+# 先下载依赖，利用 Docker 构建缓存减少轻量服务器重复拉包。
+COPY go.mod go.sum /app/
+RUN go mod download
+
 # 将当前目录（dockerfile所在目录）下所有文件都拷贝到工作目录下（.dockerignore中文件除外）
 COPY . /app/
 
