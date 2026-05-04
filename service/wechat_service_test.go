@@ -141,3 +141,31 @@ func TestWeChatTokenCheckHandlerDoesNotExposeToken(t *testing.T) {
 		t.Fatalf("openapi_seqid = %v, want seq-token", body["openapi_seqid"])
 	}
 }
+
+func TestWeChatConfigCheckHandlerReportsPresenceWithoutSecrets(t *testing.T) {
+	t.Setenv("WECHAT_APP_ID", "app-id")
+	t.Setenv("WECHAT_APP_SECRET", "app-secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/wechat/config/check", nil)
+	rec := httptest.NewRecorder()
+
+	WeChatConfigCheckHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if strings.Contains(rec.Body.String(), "app-secret") {
+		t.Fatalf("response body exposes secret: %s", rec.Body.String())
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["wechat_app_id_present"] != true {
+		t.Fatalf("wechat_app_id_present = %v, want true", body["wechat_app_id_present"])
+	}
+	if body["wechat_app_secret_present"] != true {
+		t.Fatalf("wechat_app_secret_present = %v, want true", body["wechat_app_secret_present"])
+	}
+}

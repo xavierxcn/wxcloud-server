@@ -35,6 +35,19 @@ func WeChatTokenCheckHandler(w http.ResponseWriter, r *http.Request) {
 	NewWeChatTokenCheckHandler(wechatHTTPClient, "http://api.weixin.qq.com", getWeChatCredentialsFromEnv())(w, r)
 }
 
+func WeChatConfigCheckHandler(w http.ResponseWriter, r *http.Request) {
+	credentials := getWeChatCredentialsFromEnv()
+	res := map[string]interface{}{
+		"wechat_app_id_present":     strings.TrimSpace(credentials.AppID) != "",
+		"wechat_app_id_length":      len(credentials.AppID),
+		"wechat_app_secret_present": strings.TrimSpace(credentials.AppSecret) != "",
+		"wechat_app_secret_length":  len(credentials.AppSecret),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}
+
 func NewWeChatFreePublishBatchGetHandler(client *http.Client, upstreamBase string, credentials ...WeChatCredentials) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
