@@ -35,6 +35,28 @@ PORT=8080 go run .
 - `go build ./...`
 - `docker build -t wxcloud-server:<commit> .`
 
+## 微信云托管开放接口服务
+
+本服务只使用微信云托管访问微信开放接口，不依赖本地公网 IP 白名单。
+
+云托管控制台需要：
+
+- 开启「服务管理 / 云调用 / 开放接口服务」。
+- 在「微信令牌权限」中配置需要调用的路径，至少包括：
+  - `/cgi-bin/token`
+  - `/cgi-bin/freepublish/batchget`
+- 在「服务设置 / 环境变量」中配置：
+  - `WECHAT_APP_ID`
+  - `WECHAT_APP_SECRET`
+- 开启开放接口服务后重新发布服务版本；旧版本不会自动获得开放接口服务能力。
+
+服务调用方式：
+
+- `GET /wechat/token/check`：诊断云托管内 token 换取是否成功，只返回状态、错误码和 `x-openapi-seqid`，不返回 token 明文。
+- `GET /wechat/freepublish/batchget`：先通过云托管开放接口服务换取 `access_token`，再携带该 token 调用 `/cgi-bin/freepublish/batchget`。
+
+服务代码必须使用 `http://api.weixin.qq.com`。返回头中出现 `x-openapi-seqid` 时，说明请求经过了微信云托管开放接口服务。
+
 ## 目录结构说明
 ~~~
 .
@@ -155,8 +177,11 @@ curl https://<云托管服务域名>/wechat/freepublish/batchget
 - MYSQL_PASSWORD
 - MYSQL_USERNAME
 - MYSQL_DATABASE，默认 `golang_demo`
+- WECHAT_APP_ID
+- WECHAT_APP_SECRET
 
 不要把数据库密码写入代码、README 或 `container.config.json`。
+不要把 `WECHAT_APP_SECRET` 写入代码、README 或 `container.config.json`。
 
 ## License
 

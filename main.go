@@ -18,6 +18,7 @@ func newServer() http.Handler {
 	mux.HandleFunc("/", service.IndexHandler)
 	mux.HandleFunc("/api/count", service.CounterHandler)
 	mux.HandleFunc("/wechat/freepublish/batchget", service.WeChatFreePublishBatchGetHandler)
+	mux.HandleFunc("/wechat/token/check", service.WeChatTokenCheckHandler)
 
 	return mux
 }
