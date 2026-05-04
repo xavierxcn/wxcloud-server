@@ -28,7 +28,7 @@ type wechatAccessTokenResult struct {
 }
 
 func WeChatFreePublishBatchGetHandler(w http.ResponseWriter, r *http.Request) {
-	NewWeChatFreePublishBatchGetHandler(wechatHTTPClient, "http://api.weixin.qq.com", getWeChatCredentialsFromEnv())(w, r)
+	NewWeChatFreePublishBatchGetHandler(wechatHTTPClient, "http://api.weixin.qq.com")(w, r)
 }
 
 func WeChatTokenCheckHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func WeChatConfigCheckHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
-func NewWeChatFreePublishBatchGetHandler(client *http.Client, upstreamBase string, credentials ...WeChatCredentials) http.HandlerFunc {
+func NewWeChatFreePublishBatchGetHandler(client *http.Client, upstreamBase string, _ ...WeChatCredentials) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, fmt.Sprintf("method %s not allowed", r.Method), http.StatusMethodNotAllowed)
@@ -57,20 +57,6 @@ func NewWeChatFreePublishBatchGetHandler(client *http.Client, upstreamBase strin
 
 		body := []byte(`{"offset":0,"count":20,"no_content":1}`)
 		upstreamURL := strings.TrimRight(upstreamBase, "/") + "/cgi-bin/freepublish/batchget"
-		if len(credentials) > 0 && credentials[0].configured() {
-			tokenResult, err := fetchWeChatAccessToken(client, upstreamBase, credentials[0])
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadGateway)
-				return
-			}
-			if tokenResult.AccessToken == "" {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadGateway)
-				w.Write(tokenResult.RawBody)
-				return
-			}
-			upstreamURL += "?access_token=" + tokenResult.AccessToken
-		}
 
 		req, err := http.NewRequest(http.MethodPost, upstreamURL, bytes.NewReader(body))
 		if err != nil {
@@ -87,6 +73,9 @@ func NewWeChatFreePublishBatchGetHandler(client *http.Client, upstreamBase strin
 		defer resp.Body.Close()
 
 		w.Header().Set("Content-Type", "application/json")
+		if seqID := resp.Header.Get("x-openapi-seqid"); seqID != "" {
+			w.Header().Set("x-openapi-seqid", seqID)
+		}
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
 	}

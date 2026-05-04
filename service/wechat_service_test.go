@@ -52,37 +52,23 @@ func TestFreePublishBatchGetHandlerCallsOpenAPI(t *testing.T) {
 	}
 }
 
-func TestFreePublishBatchGetHandlerUsesTokenFromCloudRunOpenAPI(t *testing.T) {
+func TestFreePublishBatchGetHandlerDoesNotFetchTokenWhenCredentialsAreConfigured(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/cgi-bin/token":
-			if r.Method != http.MethodGet {
-				t.Fatalf("token method = %s, want GET", r.Method)
-			}
-			if got := r.URL.Query().Get("grant_type"); got != "client_credential" {
-				t.Fatalf("grant_type = %s, want client_credential", got)
-			}
-			if got := r.URL.Query().Get("appid"); got != "app-id" {
-				t.Fatalf("appid = %s, want app-id", got)
-			}
-			if got := r.URL.Query().Get("secret"); got != "app-secret" {
-				t.Fatalf("secret = %s, want app-secret", got)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("x-openapi-seqid", "seq-token")
-			w.Write([]byte(`{"access_token":"token-123","expires_in":7200}`))
-		case "/cgi-bin/freepublish/batchget":
-			if r.Method != http.MethodPost {
-				t.Fatalf("batchget method = %s, want POST", r.Method)
-			}
-			if got := r.URL.Query().Get("access_token"); got != "token-123" {
-				t.Fatalf("access_token = %s, want token-123", got)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"total_count":0,"item_count":0,"item":[]}`))
-		default:
+		if r.URL.Path == "/cgi-bin/token" {
+			t.Fatal("handler must not fetch access_token when using CloudRun open API service")
+		}
+		if r.URL.Path != "/cgi-bin/freepublish/batchget" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("batchget method = %s, want POST", r.Method)
+		}
+		if got := r.URL.Query().Get("access_token"); got != "" {
+			t.Fatalf("access_token = %s, want empty", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("x-openapi-seqid", "seq-freepublish")
+		w.Write([]byte(`{"total_count":0,"item_count":0,"item":[]}`))
 	}))
 	defer upstream.Close()
 
@@ -97,6 +83,9 @@ func TestFreePublishBatchGetHandlerUsesTokenFromCloudRunOpenAPI(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get("x-openapi-seqid"); got != "seq-freepublish" {
+		t.Fatalf("x-openapi-seqid = %s, want seq-freepublish", got)
 	}
 	if strings.TrimSpace(rec.Body.String()) != `{"total_count":0,"item_count":0,"item":[]}` {
 		t.Fatalf("response body = %s", rec.Body.String())
